@@ -182,6 +182,34 @@ struct F1_2018 {
 		uint8_t        m_networkGame;              // 0 = offline, 1 = online
 	};
 
+	struct PacketSessionData2019
+	{
+		PacketHeader2019  m_header;              // Header
+
+		uint8_t           m_weather;             // Weather - 0 = clear, 1 = light cloud, 2 = overcast
+		                                         // 3 = light rain, 4 = heavy rain, 5 = storm
+		int8_t            m_trackTemperature;    // Track temp. in degrees celsius
+		int8_t            m_airTemperature;      // Air temp. in degrees celsius
+		uint8_t           m_totalLaps;           // Total number of laps in this race
+		uint16_t          m_trackLength;         // Track length in metres
+		uint8_t           m_sessionType;         // 0 = unknown, 1 = P1, 2 = P2, 3 = P3, 4 = Short P
+		                                         // 5 = Q1, 6 = Q2, 7 = Q3, 8 = Short Q, 9 = OSQ
+		                                         // 10 = R, 11 = R2, 12 = Time Trial
+		int8_t            m_trackId;             // -1 for unknown, 0-21 for tracks, see appendix
+		uint8_t           m_formula;             // Formula, 0 = F1 Modern, 1 = F1 Classic, 2 = F2, 3 = F1 Generic
+		uint16_t          m_sessionTimeLeft;     // Time left in session in seconds
+		uint16_t          m_sessionDuration;     // Session duration in seconds
+		uint8_t           m_pitSpeedLimit;       // Pit speed limit in kilometres per hour
+		uint8_t           m_gamePaused;          // Whether the game is paused
+		uint8_t           m_isSpectating;        // Whether the player is spectating
+		uint8_t           m_spectatorCarIndex;   // Index of the car being spectated
+		uint8_t           m_sliProNativeSupport; // SLI Pro support, 0 = inactive, 1 = active
+		uint8_t           m_numMarshalZones;     // Number of marshal zones to follow
+		MarshalZone       m_marshalZones[21];    // List of marshal zones – max 21
+		uint8_t           m_safetyCarStatus;     // 0 = no safety car, 1 = full safety car, 2 = virtual safety car
+		uint8_t           m_networkGame;         // 0 = offline, 1 = online
+	};
+
 	// CAR TELEMETRY PACKET
 	struct CarTelemetryData2019;
 	struct CarTelemetryData2018
@@ -356,14 +384,31 @@ struct F1_2018 {
 
 	static void SetLeds(char * buf, Serial& serial, std::vector<MyRGB>& vec)
 	{
-		static uint16_t maxRPM;
+		static uint16_t maxRPM = 0;
+		static uint8_t lastFormula = 0;
 		PacketHeader *h = reinterpret_cast<PacketHeader *>(buf);
 		//std::cout << "received " << rlen << std::endl;
 
 		int packetId = (h->m_packetFormat == 2019) ? reinterpret_cast<PacketHeader2019 *>(h)->m_packetId : h->m_packetId;
 		std::cout << "Header " << h->m_packetFormat << " version " << (unsigned int)h->m_packetVersion << " id " << packetId << std::endl;
 
-		if (packetId == PID_CAR_STATUS)
+		switch (packetId)
+		{
+		case PID_SESSION:
+		{
+			if (h->m_packetFormat == 2018)
+			{
+				PacketSessionData *p = reinterpret_cast<PacketSessionData *>(buf);
+				lastFormula = p->m_era;
+			}
+			else if (h->m_packetFormat == 2019)
+			{
+				PacketSessionData2019 *p = reinterpret_cast<PacketSessionData2019 *>(buf);
+				lastFormula = p->m_formula;
+			}
+		}
+		break;
+		case PID_CAR_STATUS:
 		{
 			if (h->m_packetFormat == 2018)
 			{
@@ -378,7 +423,9 @@ struct F1_2018 {
 				maxRPM = s.m_maxRPM;
 			}
 		}
-		else if (packetId == PID_CAR_TELEMETRY)
+		break;
+
+		case PID_CAR_TELEMETRY:
 		{
 			PacketCarTelemetryData *p = reinterpret_cast<PacketCarTelemetryData *>(buf);
 			CarTelemetryData2018 s;
@@ -414,7 +461,7 @@ struct F1_2018 {
 					led.g = (255);
 					led.b = 0;
 				}
-				else if (promill <= 875)
+				else if (promill <= 875 - (s.m_gear * 4))
 				{
 					led.r = (255);
 					led.g = 0;
@@ -446,6 +493,10 @@ struct F1_2018 {
 
 				WriteLeds(serial, vec);
 			}
+		}
+		break;
+		default:
+			break;
 		}
 	}
 };
