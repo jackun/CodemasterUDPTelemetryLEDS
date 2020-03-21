@@ -5,6 +5,7 @@
 
 #pragma once
 #define NOMINMAX
-#include "targetver.h"
+//#include "targetver.h"
+#define _WIN32_WINNT 0x0600
 
 // TODO: reference additional headers your program requires here

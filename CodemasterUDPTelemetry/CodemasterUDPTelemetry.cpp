@@ -1,11 +1,23 @@
-// CodemasterUDPTelemetry.cpp : Defines the entry point for the console application.
-//
+#ifdef _WIN32
 
 #include "stdafx.h"
 #include <winsock2.h>
-#include <WS2tcpip.h>
+#include <ws2tcpip.h>
 #pragma comment(lib,"ws2_32.lib") //Winsock Library
+#include "wgetopt.h"
+#include "Serial.h"
 
+#else
+
+#include <getopt.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <cstring>
+#include "LinuxSerial.h"
+#endif
+
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <iterator>
@@ -13,8 +25,7 @@
 #include <vector>
 #include <thread>
 #include <chrono>
-#include "Serial.h"
-#include "getopt.h"
+
 
 // LED setup, expects 36 on top/bottom, 21 on sides
 #define NUM_LEDS 114
@@ -428,8 +439,7 @@ struct F1_2018 {
 		case PID_CAR_TELEMETRY:
 		{
 			PacketCarTelemetryData *p = reinterpret_cast<PacketCarTelemetryData *>(buf);
-			CarTelemetryData2018 s;
-			memset(&s, 0, sizeof(s));
+			CarTelemetryData2018 s {};
 
 			if (h->m_packetFormat == 2018)
 				s = p->u.t_18.m_carTelemetryData[p->u.t_18.m_header.m_playerCarIndex];
@@ -444,7 +454,7 @@ struct F1_2018 {
 				//int percent = s.m_revLightsPercent;
 				int promill = s.m_engineRPM * 1000 / maxRPM;
 				std::cout << "\t percent: " << promill << std::endl;
-				promill = min(promill, 1000);
+				promill = std::min(promill, 1000);
 
 				memset(vec.data(), 0, vec.size() * sizeof(MyRGB));
 				MyRGB led;
@@ -581,7 +591,7 @@ struct DIRT
 
 		if (t->m_max_rpm > 0.f && serial.IsConnected()) {
 			//int percent = s.m_revLightsPercent;
-			int percent = min(100, int(100 * t->m_engineRate / t->m_max_rpm));
+			int percent = std::min(100, int(100 * t->m_engineRate / t->m_max_rpm));
 			std::cout << "\t percent: " << percent << std::endl;
 
 			memset(vec.data(), 0, vec.size() * sizeof(MyRGB));
@@ -642,9 +652,11 @@ void AdalightWakeUp(char * buf, Serial& serial, std::vector<MyRGB>& vec)
 #define BUFLEN 1500
 #define PORT 20777
 
-bool running = true;
+#ifdef _WIN32
+int running = 1;
 SOCKET s;
 WSADATA wsa;
+#define socklen_t int
 
 BOOL WINAPI consoleHandler(DWORD signal) {
 
@@ -656,14 +668,27 @@ BOOL WINAPI consoleHandler(DWORD signal) {
 		printf("Ctrl-C handled\n");
 		Beep(750, 300);
 #endif
-		running = false;
+		running = 0;
 		closesocket(s);
 		WSACleanup();
 	}
 
 	return TRUE;
 }
+#else
+int s;
+#define SOCKADDR sockaddr
 
+#include <signal.h>
+volatile sig_atomic_t running = 1;
+void sighandler(int sig) {
+	if (sig == SIGINT || sig == SIGTERM) {
+		running = 0;
+		printf("Ctrl-C handled\n");
+		shutdown(s, 0);
+	}
+}
+#endif
 
 enum GAME_TYPE
 {
@@ -676,7 +701,7 @@ enum GAME_TYPE
 int main(int argc, char* const * argv)
 {
 	struct sockaddr_in si_other;
-	int slen = sizeof(si_other), rlen = 0;
+	socklen_t slen = sizeof(si_other), rlen = 0;
 	char buf[BUFLEN];
 	//char serialbuf[8];
 	uint16_t maxRPM = 0;
@@ -741,11 +766,16 @@ int main(int argc, char* const * argv)
 		default:
 			abort();
 		}
-	
+
+#ifdef _WIN32
 	if (!SetConsoleCtrlHandler(consoleHandler, TRUE)) {
 		printf("\nERROR: Could not set control handler\n");
 		return 1;
 	}
+#else
+	signal(SIGINT, sighandler);
+	signal(SIGTERM, sighandler);
+#endif
 
 	Serial serial(comPort);
 	/*serial.ReadData(serialbuf, sizeof(serialbuf));
@@ -753,7 +783,7 @@ int main(int argc, char* const * argv)
 	{
 
 	}*/
-
+#ifdef _WIN32
 	printf("\nInitialising Winsock...");
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
 	{
@@ -761,10 +791,13 @@ int main(int argc, char* const * argv)
 		return (EXIT_FAILURE);
 	}
 	printf("OK.\n");
+#endif
 
-	if ((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == SOCKET_ERROR)
+	if ((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
 	{
+#ifdef _WIN32
 		printf("socket() failed with error code : %d", WSAGetLastError());
+#endif
 		return (EXIT_FAILURE);
 	}
 	
@@ -777,9 +810,10 @@ int main(int argc, char* const * argv)
 	std::cout << "Binding socket to " << server << "..." << std::flush;
 	//int result = connect(s, (SOCKADDR*)&si_other, sizeof(si_other));
 	int result = ::bind(s, (SOCKADDR*)&si_other, sizeof(si_other));
-	if (result == SOCKET_ERROR) {
-		
+	if (result < 0) {
+#ifdef _WIN32
 		std::cout << "Socket bind failed. Error: " << WSAGetLastError() << std::endl;
+#endif
 		return (EXIT_FAILURE);
 	}
 
@@ -792,9 +826,11 @@ int main(int argc, char* const * argv)
 	{
 		memset(buf, 0, BUFLEN);
 		//try to receive some data, this is a blocking call
-		if (game != GT_NONE && (rlen = recvfrom(s, buf, BUFLEN, 0, (struct sockaddr *) &si_other, &slen)) == SOCKET_ERROR && running)
+		if (game != GT_NONE && (rlen = recvfrom(s, buf, BUFLEN, 0, (struct sockaddr *) &si_other, &slen)) < 0 && running)
 		{
+#ifdef _WIN32
 			printf("recvfrom() failed with error code : %d\n", WSAGetLastError());
+#endif
 			return (EXIT_FAILURE);
 		}
 		/*else {
