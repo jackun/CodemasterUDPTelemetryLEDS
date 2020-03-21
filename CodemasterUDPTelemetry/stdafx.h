@@ -4,7 +4,7 @@
 //
 
 #pragma once
-
+#define NOMINMAX
 #include "targetver.h"
 
 // TODO: reference additional headers your program requires here

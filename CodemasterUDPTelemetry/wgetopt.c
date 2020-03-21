@@ -57,7 +57,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <windows.h>
-#include "getopt.h"
+#include "wgetopt.h"
 
 #define	REPLACE_GETOPT		/* use this getopt as the system getopt(3) */
 
