@@ -101,6 +101,6 @@ foreach a : cpp_args
   add_project_arguments(a, language : ['cpp'])
 endforeach
 
-dep_pthread = cc.find_library('pthread')
+threads_dep = dependency('threads')
 
 subdir('CodemasterUDPTelemetry')

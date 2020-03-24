@@ -32,7 +32,7 @@ telemetry_files = executable(
   ],
   dependencies : [
     extra_deps,
-    dep_pthread,
+    threads_dep,
   ],
   include_directories : [inc_common],
   link_args : cc.get_supported_link_arguments(['-Wl,-Bsymbolic-functions', '-Wl,-z,relro']),
