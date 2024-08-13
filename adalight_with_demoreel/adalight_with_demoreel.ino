@@ -193,7 +193,13 @@ void setup()
       else if(showDemo < 2 && (t - lastByteTime) > serialTimeout) {
         showDemo = 1;
       }
-      
+
+      // XXX: Leonardo - if USB is not connected (i.e. using a power brick only), run the demos. May need a power cycle.
+      if (!(UDADDR & _BV(ADDEN))) {
+        showDemo = 1;
+        lastByteTime = t;
+      }
+
       if (showDemo == 1){
       
         // Call the current pattern function once, updating the 'leds' array
