@@ -33,6 +33,15 @@
 // https://forums.codemasters.com/topic/30601-f1-2018-udp-specification/
 
 
+#if defined(_WIN32) && !defined(__MINGW32__)
+//#define PACK(def, name) __pragma(pack(push, 1)) def name __pragma(pack(pop))
+#define PACKED
+#elif defined(__clang__)
+#define PACKED __attribute__((packed))
+#else
+#define PACKED __attribute__((gcc_struct, packed))
+#endif
+
 #pragma pack(push,1)
 uint8_t lo = (NUM_LEDS - 1) & 0xFF;
 uint8_t hi = ((NUM_LEDS - 1) >> 8) & 0xFF;
@@ -44,14 +53,14 @@ struct AdaHeader
 	uint8_t hi;
 	uint8_t lo;
 	uint8_t chk;
-};
+} PACKED;
 
 struct MyRGB
 {
 	uint8_t r;
 	uint8_t g;
 	uint8_t b;
-};
+} PACKED;
 
 std::ostream & operator<< (std::ostream &out, MyRGB const &t)
 {
@@ -75,7 +84,7 @@ void WriteLeds(Serial &serial, std::vector<MyRGB>& vec)
 	//std::cerr << "OK" << std::endl;
 }
 
-struct F1_2018 {
+struct Formula1 {
 
 	enum PACKETID {
 		PID_MOTION = 0,
@@ -97,7 +106,7 @@ struct F1_2018 {
 		float       m_sessionTime;          // Session timestamp
 		uint32_t    m_frameIdentifier;      // Identifier for the frame the data was retrieved on
 		uint8_t     m_playerCarIndex;       // Index of player's car in the array
-	};
+	} PACKED;
 
 	struct PacketHeader2019
 	{
@@ -110,7 +119,26 @@ struct F1_2018 {
 		float       m_sessionTime;          // Session timestamp
 		uint32_t    m_frameIdentifier;      // Identifier for the frame the data was retrieved on
 		uint8_t     m_playerCarIndex;       // Index of player's car in the array
-	};
+	} PACKED;
+
+	struct PacketHeader2020
+	{
+		uint16_t    m_packetFormat;             // 2020
+		uint8_t     m_gameMajorVersion;         // Game major version - "X.00"
+		uint8_t     m_gameMinorVersion;         // Game minor version - "1.XX"
+		uint8_t     m_packetVersion;            // Version of this packet type, all start from 1
+		uint8_t     m_packetId;                 // Identifier for the packet type, see below
+		uint64_t    m_sessionUID;               // Unique identifier for the session
+		float       m_sessionTime;              // Session timestamp
+		uint32_t    m_frameIdentifier;          // Identifier for the frame the data was retrieved on
+		uint8_t     m_playerCarIndex;           // Index of player's car in the array
+
+	// ADDED IN BETA 2:
+		uint8_t     m_secondaryPlayerCarIndex;  // Index of secondary player's car in the array (splitscreen)
+											// 255 if no second player
+	} PACKED;
+
+	using PacketHeader2021 = PacketHeader2020;
 
 	struct CarMotionData
 	{
@@ -132,7 +160,7 @@ struct F1_2018 {
 		float         m_yaw;                      // Yaw angle in radians
 		float         m_pitch;                    // Pitch angle in radians
 		float         m_roll;                     // Roll angle in radians
-	};
+	} PACKED;
 
 	struct PacketMotionData
 	{
@@ -156,13 +184,13 @@ struct F1_2018 {
 		float         m_angularAccelerationY;        // Angular velocity y-component
 		float         m_angularAccelerationZ;        // Angular velocity z-component
 		float         m_frontWheelsAngle;            // Current front wheels angle in radians
-	};
+	} PACKED;
 
 	struct MarshalZone
 	{
 		float  m_zoneStart;   // Fraction (0..1) of way through the lap the marshal zone starts
 		int8_t m_zoneFlag;    // -1 = invalid/unknown, 0 = none, 1 = green, 2 = blue, 3 = yellow, 4 = red
-	};
+	} PACKED;
 
 	struct PacketSessionData
 	{
@@ -191,7 +219,7 @@ struct F1_2018 {
 		uint8_t         m_safetyCarStatus;          // 0 = no safety car, 1 = full safety car
 													// 2 = virtual safety car
 		uint8_t        m_networkGame;              // 0 = offline, 1 = online
-	};
+	} PACKED;
 
 	struct PacketSessionData2019
 	{
@@ -219,7 +247,7 @@ struct F1_2018 {
 		MarshalZone       m_marshalZones[21];    // List of marshal zones – max 21
 		uint8_t           m_safetyCarStatus;     // 0 = no safety car, 1 = full safety car, 2 = virtual safety car
 		uint8_t           m_networkGame;         // 0 = offline, 1 = online
-	};
+	} PACKED;
 
 	// CAR TELEMETRY PACKET
 	struct CarTelemetryData2019;
@@ -258,7 +286,7 @@ struct F1_2018 {
 			m_engineTemperature = o.m_engineTemperature;
 			memcpy(m_tyresPressure, o.m_tyresPressure, sizeof(m_tyresPressure));
 		}
-	};
+	} PACKED;
 
 	struct CarTelemetryData2019
 	{
@@ -277,7 +305,87 @@ struct F1_2018 {
 		uint16_t    m_engineTemperature;        // Engine temperature (celsius)
 		float       m_tyresPressure[4];         // Tyres pressure (PSI)
 		uint8_t     m_surfaceType[4];           // Driving surface, see appendices
-	};
+	} PACKED;
+
+	struct CarTelemetryData2020
+	{
+		uint16_t    m_speed;                    // Speed of car in kilometres per hour
+		float       m_throttle;                 // Amount of throttle applied (0.0 to 1.0)
+		float       m_steer;                    // Steering (-1.0 (full lock left) to 1.0 (full lock right))
+		float       m_brake;                    // Amount of brake applied (0.0 to 1.0)
+		uint8_t     m_clutch;                   // Amount of clutch applied (0 to 100)
+		int8_t      m_gear;                     // Gear selected (1-8, N=0, R=-1)
+		uint16_t    m_engineRPM;                // Engine RPM
+		uint8_t     m_drs;                      // 0 = off, 1 = on
+		uint8_t     m_revLightsPercent;         // Rev lights indicator (percentage)
+		uint16_t    m_brakesTemperature[4];     // Brakes temperature (celsius)
+		uint8_t    m_tyresSurfaceTemperature[4]; // Tyres surface temperature (celsius)
+		uint8_t    m_tyresInnerTemperature[4]; // Tyres inner temperature (celsius)
+		uint16_t    m_engineTemperature;        // Engine temperature (celsius)
+		float       m_tyresPressure[4];         // Tyres pressure (PSI)
+		uint8_t     m_surfaceType[4];           // Driving surface, see appendices
+	} PACKED;
+
+	friend std::ostream & operator<< (std::ostream &out, const CarTelemetryData2020& t)
+	{
+		out << "speed: " << t.m_speed << "\n"
+		<< "throttle: " << t.m_throttle << "\n"
+		<< "steer: " << t.m_steer << "\n"
+		<< "brake: " << t.m_brake << "\n"
+		<< "clutch: " << (unsigned int)t.m_clutch << "\n"
+		<< "gear: " << (int)t.m_gear << "\n"
+		<< "engineRPM: " << t.m_engineRPM << "\n"
+		<< "drs: " << (int)t.m_drs << "\n"
+		<< "revLightsPercent: " << (int)t.m_revLightsPercent << "\n"
+		<< "brakesTemperature: "
+			<< t.m_brakesTemperature[0] << ", "
+			<< t.m_brakesTemperature[1] << ", "
+			<< t.m_brakesTemperature[2] << ", "
+			<< t.m_brakesTemperature[3] << "]\n"
+		<< "tyresSurfaceTemperature: ["
+			<< (unsigned int)t.m_tyresSurfaceTemperature[0] << ", "
+			<< (unsigned int)t.m_tyresSurfaceTemperature[1] << ", "
+			<< (unsigned int)t.m_tyresSurfaceTemperature[2] << ", "
+			<< (unsigned int)t.m_tyresSurfaceTemperature[3] << "]\n"
+		<< "tyresInnerTemperature: ["
+			<< (unsigned int)t.m_tyresInnerTemperature[0] << ", "
+			<< (unsigned int)t.m_tyresInnerTemperature[1] << ", "
+			<< (unsigned int)t.m_tyresInnerTemperature[2] << ", "
+			<< (unsigned int)t.m_tyresInnerTemperature[3] << "]\n"
+		<< "engineTemperature: " << t.m_engineTemperature << "\n"
+		<< "tyresPressure: ["
+			<< t.m_tyresPressure[0] << ", "
+			<< t.m_tyresPressure[1] << ", "
+			<< t.m_tyresPressure[2] << ", "
+			<< t.m_tyresPressure[3] << "]\n"
+		<< "surfaceType: ["
+			<< (unsigned int)t.m_surfaceType[0] << ", "
+			<< (unsigned int)t.m_surfaceType[1] << ", "
+			<< (unsigned int)t.m_surfaceType[2] << ", "
+			<< (unsigned int)t.m_surfaceType[3] << "]"
+			;
+		return out;
+	}
+
+	struct CarTelemetryData2021
+	{
+		uint16_t  m_speed;                    // Speed of car in kilometres per hour
+		float     m_throttle;                 // Amount of throttle applied (0.0 to 1.0)
+		float     m_steer;                    // Steering (-1.0 (full lock left) to 1.0 (full lock right))
+		float     m_brake;                    // Amount of brake applied (0.0 to 1.0)
+		uint8_t   m_clutch;                   // Amount of clutch applied (0 to 100)
+		int8_t    m_gear;                     // Gear selected (1-8, N=0, R=-1)
+		uint16_t  m_engineRPM;                // Engine RPM
+		uint8_t   m_drs;                      // 0 = off, 1 = on
+		uint8_t   m_revLightsPercent;         // Rev lights indicator (percentage)
+		uint16_t  m_revLightsBitValue;        // Rev lights (bit 0 = leftmost LED, bit 14 = rightmost LED)
+		uint16_t  m_brakesTemperature[4];     // Brakes temperature (celsius)
+		uint8_t   m_tyresSurfaceTemperature[4]; // Tyres surface temperature (celsius)
+		uint8_t   m_tyresInnerTemperature[4]; // Tyres inner temperature (celsius)
+		uint16_t  m_engineTemperature;        // Engine temperature (celsius)
+		float     m_tyresPressure[4];         // Tyres pressure (PSI)
+		uint8_t   m_surfaceType[4];           // Driving surface, see appendices
+	} PACKED;
 
 	struct PacketCarTelemetryData2018
 	{
@@ -285,7 +393,7 @@ struct F1_2018 {
 		CarTelemetryData2018 m_carTelemetryData[20];
 		uint32_t             m_buttonStatus;         // Bit flags specifying which buttons are being
 													// pressed currently - see appendices
-	};
+	} PACKED;
 
 	struct PacketCarTelemetryData2019
 	{
@@ -293,13 +401,43 @@ struct F1_2018 {
 		CarTelemetryData2019 m_carTelemetryData[20];
 		uint32_t             m_buttonStatus;         // Bit flags specifying which buttons are being
 													// pressed currently - see appendices
-	};
+	} PACKED;
+
+	struct PacketCarTelemetryData2020
+	{
+		PacketHeader2020     m_header;                // Header
+		CarTelemetryData2020 m_carTelemetryData[22];
+		uint32_t             m_buttonStatus;         // Bit flags specifying which buttons are being
+													// pressed currently - see appendices
+		uint8_t               m_mfdPanelIndex;       // Index of MFD panel open - 255 = MFD closed
+													// Single player, race – 0 = Car setup, 1 = Pits
+													// 2 = Damage, 3 =  Engine, 4 = Temperatures
+													// May vary depending on game mode
+		uint8_t               m_mfdPanelIndexSecondaryPlayer;   // See above
+		int8_t                m_suggestedGear;       // Suggested gear for the player (1-8)
+													// 0 if no gear suggested
+	} PACKED;
+
+	struct PacketCarTelemetryData2021
+	{
+		PacketHeader2021     m_header;                // Header
+		CarTelemetryData2021 m_carTelemetryData[22];
+		uint8_t               m_mfdPanelIndex;       // Index of MFD panel open - 255 = MFD closed
+													// Single player, race – 0 = Car setup, 1 = Pits
+													// 2 = Damage, 3 =  Engine, 4 = Temperatures
+													// May vary depending on game mode
+		uint8_t               m_mfdPanelIndexSecondaryPlayer;   // See above
+		int8_t                m_suggestedGear;       // Suggested gear for the player (1-8)
+													// 0 if no gear suggested
+	} PACKED;
 
 	struct PacketCarTelemetryData
 	{
 		union {
 			PacketCarTelemetryData2018 t_18;
 			PacketCarTelemetryData2019 t_19;
+			PacketCarTelemetryData2020 t_20;
+			PacketCarTelemetryData2021 t_21;
 		} u;
 	};
 	// CAR STATUS PACKET
@@ -337,9 +475,49 @@ struct F1_2018 {
 		float       m_ersHarvestedThisLapMGUK;  // ERS energy harvested this lap by MGU-K
 		float       m_ersHarvestedThisLapMGUH;  // ERS energy harvested this lap by MGU-H
 		float       m_ersDeployedThisLap;       // ERS energy deployed this lap
-	};
+	} PACKED;
 
 	struct CarStatusData2019
+	{
+		uint8_t     m_tractionControl;          // 0 (off) - 2 (high)
+		uint8_t     m_antiLockBrakes;           // 0 (off) - 1 (on)
+		uint8_t     m_fuelMix;                  // Fuel mix - 0 = lean, 1 = standard, 2 = rich, 3 = max
+		uint8_t     m_frontBrakeBias;           // Front brake bias (percentage)
+		uint8_t     m_pitLimiterStatus;         // Pit limiter status - 0 = off, 1 = on
+		float       m_fuelInTank;               // Current fuel mass
+		float       m_fuelCapacity;             // Fuel capacity
+		float       m_fuelRemainingLaps;        // Fuel remaining in terms of laps (value on MFD)
+		uint16_t    m_maxRPM;                   // Cars max RPM, point of rev limiter
+		uint16_t    m_idleRPM;                  // Cars idle RPM
+		uint8_t     m_maxGears;                 // Maximum number of gears
+		uint8_t     m_drsAllowed;               // 0 = not allowed, 1 = allowed, -1 = unknown
+		uint8_t     m_tyresWear[4];             // Tyre wear percentage
+		uint8_t     m_actualTyreCompound;	   // F1 Modern - 16 = C5, 17 = C4, 18 = C3, 19 = C2, 20 = C1
+						   // 7 = inter, 8 = wet
+						   // F1 Classic - 9 = dry, 10 = wet
+						   // F2 – 11 = super soft, 12 = soft, 13 = medium, 14 = hard
+						   // 15 = wet
+		uint8_t     m_tyreVisualCompound;       // F1 visual (can be different from actual compound)
+		   // 16 = soft, 17 = medium, 18 = hard, 7 = inter, 8 = wet
+		   // F1 Classic – same as above
+		   // F2 – same as above
+		uint8_t     m_tyresDamage[4];           // Tyre damage (percentage)
+		uint8_t     m_frontLeftWingDamage;      // Front left wing damage (percentage)
+		uint8_t     m_frontRightWingDamage;     // Front right wing damage (percentage)
+		uint8_t     m_rearWingDamage;           // Rear wing damage (percentage)
+		uint8_t     m_engineDamage;             // Engine damage (percentage)
+		uint8_t     m_gearBoxDamage;            // Gear box damage (percentage)
+		int8_t      m_vehicleFiaFlags;	   // -1 = invalid/unknown, 0 = none, 1 = green
+												// 2 = blue, 3 = yellow, 4 = red
+		float       m_ersStoreEnergy;           // ERS energy store in Joules
+		uint8_t     m_ersDeployMode;            // ERS deployment mode, 0 = none, 1 = low, 2 = medium
+						   // 3 = high, 4 = overtake, 5 = hotlap
+		float       m_ersHarvestedThisLapMGUK;  // ERS energy harvested this lap by MGU-K
+		float       m_ersHarvestedThisLapMGUH;  // ERS energy harvested this lap by MGU-H
+		float       m_ersDeployedThisLap;       // ERS energy deployed this lap
+	} PACKED;
+
+	struct CarStatusData2020
 	{
 		uint8_t       m_tractionControl;          // 0 (off) - 2 (high)
 		uint8_t       m_antiLockBrakes;           // 0 (off) - 1 (on)
@@ -353,6 +531,8 @@ struct F1_2018 {
 		uint16_t      m_idleRPM;                  // Cars idle RPM
 		uint8_t       m_maxGears;                 // Maximum number of gears
 		uint8_t       m_drsAllowed;               // 0 = not allowed, 1 = allowed, -1 = unknown
+		uint16_t      m_drsActivationDistance;    // 0 = DRS not available, non-zero - DRS will be available
+													// in [X] metres
 		uint8_t       m_tyresWear[4];             // Tyre wear percentage
 		uint8_t       m_actualTyreCompound;	   // F1 Modern - 16 = C5, 17 = C4, 18 = C3, 19 = C2, 20 = C1
 						   // 7 = inter, 8 = wet
@@ -363,10 +543,13 @@ struct F1_2018 {
 		   // 16 = soft, 17 = medium, 18 = hard, 7 = inter, 8 = wet
 		   // F1 Classic – same as above
 		   // F2 – same as above
+		uint8_t       m_tyresAgeLaps;             // Age in laps of the current set of tyres
 		uint8_t       m_tyresDamage[4];           // Tyre damage (percentage)
 		uint8_t       m_frontLeftWingDamage;      // Front left wing damage (percentage)
 		uint8_t       m_frontRightWingDamage;     // Front right wing damage (percentage)
 		uint8_t       m_rearWingDamage;           // Rear wing damage (percentage)
+
+		uint8_t       m_drsFault;                 // Indicator for DRS fault, 0 = OK, 1 = fault
 		uint8_t       m_engineDamage;             // Engine damage (percentage)
 		uint8_t       m_gearBoxDamage;            // Gear box damage (percentage)
 		int8_t        m_vehicleFiaFlags;	   // -1 = invalid/unknown, 0 = none, 1 = green
@@ -377,21 +560,69 @@ struct F1_2018 {
 		float       m_ersHarvestedThisLapMGUK;  // ERS energy harvested this lap by MGU-K
 		float       m_ersHarvestedThisLapMGUH;  // ERS energy harvested this lap by MGU-H
 		float       m_ersDeployedThisLap;       // ERS energy deployed this lap
-	};
+	} PACKED;
+
+	struct CarStatusData2021
+	{
+		uint8_t     m_tractionControl;          // Traction control - 0 = off, 1 = medium, 2 = full
+		uint8_t     m_antiLockBrakes;           // 0 (off) - 1 (on)
+		uint8_t     m_fuelMix;                  // Fuel mix - 0 = lean, 1 = standard, 2 = rich, 3 = max
+		uint8_t     m_frontBrakeBias;           // Front brake bias (percentage)
+		uint8_t     m_pitLimiterStatus;         // Pit limiter status - 0 = off, 1 = on
+		float       m_fuelInTank;               // Current fuel mass
+		float       m_fuelCapacity;             // Fuel capacity
+		float       m_fuelRemainingLaps;        // Fuel remaining in terms of laps (value on MFD)
+		uint16_t    m_maxRPM;                   // Cars max RPM, point of rev limiter
+		uint16_t    m_idleRPM;                  // Cars idle RPM
+		uint8_t     m_maxGears;                 // Maximum number of gears
+		uint8_t     m_drsAllowed;               // 0 = not allowed, 1 = allowed
+		uint16_t    m_drsActivationDistance;    // 0 = DRS not available, non-zero - DRS will be available
+												// in [X] metres
+		uint8_t     m_actualTyreCompound;	   // F1 Modern - 16 = C5, 17 = C4, 18 = C3, 19 = C2, 20 = C1
+						// 7 = inter, 8 = wet
+						// F1 Classic - 9 = dry, 10 = wet
+						// F2 – 11 = super soft, 12 = soft, 13 = medium, 14 = hard
+						// 15 = wet
+		uint8_t     m_visualTyreCompound;       // F1 visual (can be different from actual compound)
+												// 16 = soft, 17 = medium, 18 = hard, 7 = inter, 8 = wet
+												// F1 Classic – same as above
+												// F2 ‘19, 15 = wet, 19 – super soft, 20 = soft
+												// 21 = medium , 22 = hard
+		uint8_t     m_tyresAgeLaps;             // Age in laps of the current set of tyres
+		int8_t      m_vehicleFiaFlags;	   // -1 = invalid/unknown, 0 = none, 1 = green
+												// 2 = blue, 3 = yellow, 4 = red
+		float       m_ersStoreEnergy;           // ERS energy store in Joules
+		uint8_t       m_ersDeployMode;            // ERS deployment mode, 0 = none, 1 = medium
+						// 2 = hotlap, 3 = overtake
+		float       m_ersHarvestedThisLapMGUK;  // ERS energy harvested this lap by MGU-K
+		float       m_ersHarvestedThisLapMGUH;  // ERS energy harvested this lap by MGU-H
+		float       m_ersDeployedThisLap;       // ERS energy deployed this lap
+		uint8_t     m_networkPaused;            // Whether the car is paused in a network game
+	} PACKED;
 
 	struct PacketCarStatusData
 	{
 		PacketHeader        m_header;            // Header
-
 		CarStatusData       m_carStatusData[20];
-	};
+	} PACKED;
 
 	struct PacketCarStatusData2019
 	{
 		PacketHeader2019    m_header;            // Header
-
 		CarStatusData2019   m_carStatusData[20];
-	};
+	} PACKED;
+
+	struct PacketCarStatusData2020
+	{
+		PacketHeader2020    m_header;           // Header
+		CarStatusData2020   m_carStatusData[22];
+	} PACKED;
+
+	struct PacketCarStatusData2021
+	{
+		PacketHeader2021    m_header;	   // Header
+		CarStatusData2021   m_carStatusData[22];
+	} PACKED;
 
 	static void SetLeds(char * buf, Serial& serial, std::vector<MyRGB>& vec)
 	{
@@ -400,7 +631,21 @@ struct F1_2018 {
 		PacketHeader *h = reinterpret_cast<PacketHeader *>(buf);
 		//std::cout << "received " << rlen << std::endl;
 
-		int packetId = (h->m_packetFormat == 2019) ? reinterpret_cast<PacketHeader2019 *>(h)->m_packetId : h->m_packetId;
+		int packetId = -1;
+		switch (h->m_packetFormat)
+		{
+			case 2018:
+				packetId = h->m_packetId;
+				break;
+			case 2019:
+			case 2020:
+			case 2021:
+				packetId = reinterpret_cast<PacketHeader2019 *>(buf)->m_packetId;
+				break;
+			default:
+			return;
+		}
+
 		std::cout << "Header " << h->m_packetFormat << " version " << (unsigned int)h->m_packetVersion << " id " << packetId << std::endl;
 
 		switch (packetId)
@@ -421,17 +666,38 @@ struct F1_2018 {
 		break;
 		case PID_CAR_STATUS:
 		{
-			if (h->m_packetFormat == 2018)
+			switch (h->m_packetFormat)
+			{
+			case 2018:
 			{
 				PacketCarStatusData *p = reinterpret_cast<PacketCarStatusData *>(buf);
 				auto s = p->m_carStatusData[p->m_header.m_playerCarIndex];
 				maxRPM = s.m_maxRPM;
 			}
-			else if (h->m_packetFormat == 2019)
+			break;
+			case 2019:
 			{
 				PacketCarStatusData2019 *p = reinterpret_cast<PacketCarStatusData2019 *>(buf);
 				auto s = p->m_carStatusData[p->m_header.m_playerCarIndex];
 				maxRPM = s.m_maxRPM;
+			}
+			break;
+			case 2020:
+			{
+				PacketCarStatusData2020 *p = reinterpret_cast<PacketCarStatusData2020 *>(buf);
+				auto s = p->m_carStatusData[p->m_header.m_playerCarIndex];
+				maxRPM = s.m_maxRPM;
+				std::cout << "m_fuelRemainingLaps " << s.m_fuelRemainingLaps << "\n";
+			}
+			break;
+			case 2021:
+			{
+				PacketCarStatusData2021 *p = reinterpret_cast<PacketCarStatusData2021 *>(buf);
+				auto s = p->m_carStatusData[p->m_header.m_playerCarIndex];
+				maxRPM = s.m_maxRPM;
+				std::cout << "m_fuelRemainingLaps " << s.m_fuelRemainingLaps << "\n";
+			}
+			break;
 			}
 		}
 		break;
@@ -439,49 +705,108 @@ struct F1_2018 {
 		case PID_CAR_TELEMETRY:
 		{
 			PacketCarTelemetryData *p = reinterpret_cast<PacketCarTelemetryData *>(buf);
-			CarTelemetryData2018 s {};
+			uint16_t engineRPM = 0;
+			int8_t gear = 0;
 
 			if (h->m_packetFormat == 2018)
-				s = p->u.t_18.m_carTelemetryData[p->u.t_18.m_header.m_playerCarIndex];
+			{
+				engineRPM = p->u.t_18.m_carTelemetryData[p->u.t_18.m_header.m_playerCarIndex].m_engineRPM;
+				gear = p->u.t_18.m_carTelemetryData[p->u.t_18.m_header.m_playerCarIndex].m_gear;
+			}
 			else if (h->m_packetFormat == 2019)
-				s = CarTelemetryData2018(p->u.t_19.m_carTelemetryData[p->u.t_19.m_header.m_playerCarIndex]);
+			{
+				engineRPM = p->u.t_19.m_carTelemetryData[p->u.t_19.m_header.m_playerCarIndex].m_engineRPM;
+				gear = p->u.t_19.m_carTelemetryData[p->u.t_19.m_header.m_playerCarIndex].m_gear;
+			}
+			else if (h->m_packetFormat == 2020)
+			{
+				engineRPM = p->u.t_20.m_carTelemetryData[p->u.t_20.m_header.m_playerCarIndex].m_engineRPM;
+				gear = p->u.t_20.m_carTelemetryData[p->u.t_20.m_header.m_playerCarIndex].m_gear;
+				std::cout << "index: " <<
+					(int)p->u.t_20.m_header.m_playerCarIndex << "\n";
+				std::cout << p->u.t_20.m_carTelemetryData[p->u.t_20.m_header.m_playerCarIndex] << "\n";
+			}
+			else if (h->m_packetFormat == 2021)
+			{
+				engineRPM = p->u.t_21.m_carTelemetryData[p->u.t_21.m_header.m_playerCarIndex].m_engineRPM;
+				gear = p->u.t_21.m_carTelemetryData[p->u.t_21.m_header.m_playerCarIndex].m_gear;
+			}
 			else
 				return;
 
-			std::cout << "RPM " << s.m_engineRPM << " / " << maxRPM << "(" << (int)s.m_revLightsPercent << ")" << std::endl;
+			std::cout << "format: " << h->m_packetFormat << "\n";
+			std::cout << "RPM " << engineRPM << " / " << maxRPM << " " << (int)gear << "\n"; //<< "(" << (int)s.m_revLightsPercent << ")" << std::endl;
 
 			if (maxRPM && serial.IsConnected()) {
-				//int percent = s.m_revLightsPercent;
-				int promill = s.m_engineRPM * 1000 / maxRPM;
-				std::cout << "\t percent: " << promill << std::endl;
-				promill = std::min(promill, 1000);
-
 				memset(vec.data(), 0, vec.size() * sizeof(MyRGB));
 				MyRGB led;
+				int promill = engineRPM * 1000 / maxRPM;
 
-				if (promill <= 600)
+				if (maxRPM == 13000)
 				{
-					led.r = 0;
-					led.g = 25 + ((230 * promill) / 600);
-					led.b = 0;
-				}
-				else if (promill <= 750)
-				{
-					led.r = (255);
-					led.g = (255);
-					led.b = 0;
-				}
-				else if (promill <= 875 - (s.m_gear * 4))
-				{
-					led.r = (255);
-					led.g = 0;
-					led.b = 0;
+					if (engineRPM < 11200)
+					{
+						led.r = 0;
+						led.g = 25 + (230 * engineRPM / 11200);
+						led.b = 0;
+					}
+					else if (engineRPM < 11300)
+					{
+						led.r = (255);
+						led.g = (255);
+						led.b = 0;
+					}
+					else if (engineRPM < 11500)
+					{
+						led.r = (255);
+						led.g = 0;
+						led.b = 0;
+					}
+					else
+					{
+						static bool flicker = false;
+						if (engineRPM >= 12000)
+							flicker = !flicker;
+						else
+							flicker = false;
+						led.r = flicker ? 16 : 128;
+						led.g = 0;
+						led.b = flicker ? 32 : 255;
+					}
+
 				}
 				else
 				{
-					led.r = (128);
-					led.g = 0;
-					led.b = (255);
+					//int percent = s.m_revLightsPercent;
+
+					std::cout << "\t percent: " << promill << std::endl;
+					promill = std::min(promill, 1000);
+
+
+					if (promill <= 600)
+					{
+						led.r = 0;
+						led.g = 25 + ((230 * promill) / 600);
+						led.b = 0;
+					}
+					else if (promill <= 750)
+					{
+						led.r = (255);
+						led.g = (255);
+						led.b = 0;
+					}
+					else if (promill <= 875 - (gear * 4))
+					{
+						led.r = (255);
+						led.g = 0;
+						led.b = 0;
+					}
+					else
+					{
+						led.r = (128);
+						led.g = 0;
+						led.b = (255);
+					}
 				}
 
 				// sides
@@ -509,7 +834,7 @@ struct F1_2018 {
 			break;
 		}
 	}
-};
+} PACKED;
 
 
 struct DIRT
@@ -520,7 +845,7 @@ struct DIRT
 		//float data[64];
 		float m_time;	// Time
 		float m_lapTime;	// Time of Current Lap
-		float m_lapDistance;	// Distance Driven on Current Lap
+		float m_lapDistance;	// Distance Driven on Current LapPacketCarStatusData2020
 		float m_totalDistance;	// Distance Driven Overall
 		float m_x; // World space position	Position X
 		float m_y; // World space position	Position Y
@@ -636,7 +961,7 @@ struct DIRT
 			WriteLeds(serial, vec);
 		}
 	}
-};
+} PACKED;
 #pragma pack(pop)
 
 void AdalightWakeUp(char * buf, Serial& serial, std::vector<MyRGB>& vec)
@@ -693,7 +1018,7 @@ void sighandler(int sig) {
 enum GAME_TYPE
 {
 	GT_NONE,
-	GT_F1_2018,
+	GT_F1,
 	GT_DIRT,
 	GT_DIRT2
 };
@@ -704,7 +1029,6 @@ int main(int argc, char* const * argv)
 	socklen_t slen = sizeof(si_other), rlen = 0;
 	char buf[BUFLEN];
 	//char serialbuf[8];
-	uint16_t maxRPM = 0;
 	std::vector<MyRGB> rgb4Vec(NUM_LEDS);
 	GAME_TYPE game = GT_NONE;
 	SetLeds setLeds = nullptr;
@@ -723,9 +1047,9 @@ int main(int argc, char* const * argv)
 			break;
 		case 'g':
 			//aflag = 1;
-			if (!strncmp(optarg, "f1_2018", 8)) {
-				game = GT_F1_2018;
-				setLeds = F1_2018::SetLeds;
+			if (!strncmp(optarg, "f1", 2)) {
+				game = GT_F1;
+				setLeds = Formula1::SetLeds;
 			}
 			else if (!strncmp(optarg, "dirt_rally2", 6)) {
 				game = GT_DIRT2;
@@ -800,7 +1124,7 @@ int main(int argc, char* const * argv)
 #endif
 		return (EXIT_FAILURE);
 	}
-	
+
 	//setup address structure
 	memset((char *)&si_other, 0, sizeof(si_other));
 	si_other.sin_family = AF_INET;
@@ -857,4 +1181,6 @@ int main(int argc, char* const * argv)
 
     return 0;
 }
+
+
 
