@@ -7,7 +7,7 @@
 #define LED_PIN 6 // arduino output pin
 #define GROUND_PIN 10
 #define BRIGHTNESS 255 // maximum brightness
-#define SPEED 115200 // virtual serial port speed, must be the same in boblight_config 
+#define SERIALSPEED 115200 // virtual serial port speed, must be the same in boblight_config
 
 CRGB leds[NUM_LEDS];
 uint8_t * ledsRaw = (uint8_t *)leds;
@@ -16,18 +16,11 @@ uint8_t * ledsRaw = (uint8_t *)leds;
 #define FRAMES_PER_SECOND  120
 // List of patterns to cycle through.  Each is defined as a separate function below.
 typedef void (*SimplePatternList[])();
-SimplePatternList gPatterns = { rainbow, rainbowWithGlitter, confetti, sinelon, juggle, bpm };
 
 uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
 uint8_t gHue = 0; // rotating "base color" used by many of the patterns
 
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
-
-void nextPattern()
-{
-  // add one to the current pattern number, and wrap around at the end
-  gCurrentPatternNumber = (gCurrentPatternNumber + 1) % ARRAY_SIZE( gPatterns);
-}
 
 void rainbow() 
 {
@@ -84,6 +77,14 @@ void juggle() {
     leds[beatsin16( i+7, 0, NUM_LEDS-1 )] |= CHSV(dothue, 200, 255);
     dothue += 32;
   }
+}
+
+SimplePatternList gPatterns = { rainbow, rainbowWithGlitter, confetti, sinelon, juggle, bpm };
+
+void nextPattern()
+{
+  // add one to the current pattern number, and wrap around at the end
+  gCurrentPatternNumber = (gCurrentPatternNumber + 1) % ARRAY_SIZE( gPatterns);
 }
 
 /* demoreel end */
@@ -154,7 +155,7 @@ void setup()
   t;
   int32_t outPos = 0;
 
-  Serial.begin(SPEED); // Teensy/32u4 disregards baud rate; is OK!
+  Serial.begin(SERIALSPEED); // Teensy/32u4 disregards baud rate; is OK!
 
   Serial.print("Ada\n"); // Send ACK string to host
 
